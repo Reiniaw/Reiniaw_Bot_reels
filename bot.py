@@ -3,6 +3,8 @@ from telegram.ext import Application, CommandHandler, MessageHandler, filters, C
 from config import TOKEN  # Токен берем из config.py
 import yt_dlp
 import logging
+import uuid
+import os
 
 # Создаем отдельный логгер только для бота
 logger = logging.getLogger("bot")
@@ -54,17 +56,21 @@ async def handle_message(update: Update, context: CallbackContext):
         await update.message.reply_text("Не удалось найти видео. Возможно, ссылка битая или Reels приватный.")
         return
 
+    # --- уникальное имя файла ---
+    filename = f"video_{uuid.uuid4().hex}.mp4"
+
     try:
         # Скачиваем видео во временный файл
         ydl_opts = {
             "format": "mp4",
             "quiet": True,
-            "outtmpl": "video.mp4",
+            "outtmpl": filename,
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([text])
 
-        with open("video.mp4", "rb") as f:
+        # Отправляем видео
+        with open(filename, "rb") as f:
             await update.message.reply_video(f)
 
         logger.info(f"Видео успешно отправлено пользователю {user.id}")
@@ -73,6 +79,10 @@ async def handle_message(update: Update, context: CallbackContext):
         logger.exception(f"Ошибка при отправке видео пользователю {user.id}: {e}")
         await update.message.reply_text("Произошла ошибка при получении видео.")
 
+    finally:
+        # Удаляем файл после отправки
+        if os.path.exists(filename):
+            os.remove(filename)
 
 def main():
     application = Application.builder().token(TOKEN).build()
